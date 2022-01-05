@@ -1,4 +1,4 @@
 
 import os
 
-os.system("nvidia-docker run -it -v /home/kaushiks/cable/detectron2/:/host detectron2:v0")
+os.system("nvidia-docker run -it -v /home/vainavi/detectron2/:/host vainavi-detectron2")
