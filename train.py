@@ -29,7 +29,7 @@ def get_loop_dicts(img_dir):
     """
     # Get the list of images in the dataset
     img_list = os.listdir(os.path.join(img_dir, "images"))
-    img_list = [img_name for img_name in img_list if img_name.endswith(".jpg")]
+    img_list = [img_name for img_name in img_list if img_name.endswith(".png")]
     img_list.sort()
 
     dataset_dicts = []
@@ -49,7 +49,7 @@ def get_loop_dicts(img_dir):
         record['width'] = img_width
 
         # read annotation
-        annots_path = os.path.join(img_dir, 'annots', img_name.replace(".jpg", ".xml.txt"))
+        annots_path = os.path.join(img_dir, 'annots', img_name.replace(".png", ".xml"))
         with open(annots_path, 'r') as f:
             for line in f:
                 # split line by space
@@ -75,19 +75,20 @@ def get_loop_dicts(img_dir):
 
     return dataset_dicts
 
-for d in ['train', 'val']:
-    DatasetCatalog.register("loop_" + d, lambda d=d: get_loop_dicts("loop/" + d))
+dataset_name = "dataset/loop_detectron"
+for d in ['train', 'test']:
+    DatasetCatalog.register("loop_" + d, lambda d=d: get_loop_dicts( dataset_name  + "/" + d))
     MetadataCatalog.get("loop_" + d).set(thing_classes=["loop"])
 
 loop_metadata = MetadataCatalog.get("loop_train")
 
 # verify dataset loading
-dataset_dicts = get_loop_dicts("loop/train")
+dataset_dicts = get_loop_dicts(dataset_name + "/train")
 for d in random.sample(dataset_dicts, 3):
     img = cv2.imread(d['file_name'])
     visualizer = Visualizer(img[:,:,::-1], metadata=loop_metadata, scale=0.5)
     out = visualizer.draw_dataset_dict(d)
-    cv2.imwrite("loop_train_sample.jpg", out.get_image()[:,:,::-1])
+    cv2.imwrite("loop_train_sample.png", out.get_image()[:,:,::-1])
 
 # now we train the model
 from detectron2.engine import DefaultTrainer
@@ -122,7 +123,7 @@ cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7   # set a custom testing threshold
 predictor = DefaultPredictor(cfg)
 
 from detectron2.utils.visualizer import ColorMode
-dataset_dicts = get_loop_dicts("loop/val")
+dataset_dicts = get_loop_dicts( dataset_name + "/test")
 for d in random.sample(dataset_dicts, 3):    
     im = cv2.imread(d["file_name"])
     outputs = predictor(im)  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
@@ -132,4 +133,4 @@ for d in random.sample(dataset_dicts, 3):
                    instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels. This option is only available for segmentation models
     )
     out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-    cv2.imwrite("loop_val_sample.jpg", out.get_image()[:,:,::-1])
+    cv2.imwrite("loop_val_sample.png", out.get_image()[:,:,::-1])
