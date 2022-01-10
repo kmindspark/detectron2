@@ -53,20 +53,16 @@ def get_loop_dicts(img_dir):
         with open(annots_path, 'r') as f:
             for line in f:
                 # split line by space
-                _, centerx, centery, width, height = list(map(lambda x: float(x), line.split()))
-                xmin, xmax = centerx - width/2, centerx + width/2
-                ymin, ymax = centery - height/2, centery + height/2
-
-                processed_xmin, processed_ymin, processed_xmax, processed_ymax = list(map(lambda x: int(x), [xmin * img_width, ymin * img_height, xmax * img_width, ymax * img_height]))
+                label, xmin, ymin, xmax, ymax = list(map(lambda x: int(x), line.split()))
 
                 # create a mask with 1s inside bounding box
                 mask = np.zeros((img_height, img_width), dtype=np.uint8)
-                mask[processed_ymin:processed_ymax, processed_xmin:processed_xmax] = 1
+                mask[ymin:ymax, xmin:xmax] = 1
 
                 obj = {
-                    'bbox': [processed_xmin, processed_ymin, processed_xmax, processed_ymax],
+                    'bbox': [xmin, ymin, xmax, ymax],
                     'bbox_mode': BoxMode.XYXY_ABS,
-                    'category_id': 0,
+                    'category_id': label,
                     'segmentation': pycocotools.mask.encode(np.asarray(mask, order="F")),
                 }
                 objs.append(obj)
@@ -75,10 +71,10 @@ def get_loop_dicts(img_dir):
 
     return dataset_dicts
 
-dataset_name = "dataset/loop_detectron"
+dataset_name = "datasets/loop_detectron"
 for d in ['train', 'test']:
     DatasetCatalog.register("loop_" + d, lambda d=d: get_loop_dicts( dataset_name  + "/" + d))
-    MetadataCatalog.get("loop_" + d).set(thing_classes=["loop"])
+    MetadataCatalog.get("loop_" + d).set(thing_classes=["non-trivial-knot", "trivial-knot"])
 
 loop_metadata = MetadataCatalog.get("loop_train")
 
@@ -104,7 +100,7 @@ cfg.SOLVER.BASE_LR = 0.00025  # pick a good LR
 cfg.SOLVER.MAX_ITER = 1000    # 300 iterations seems good enough for this toy dataset; you will need to train longer for a practical dataset
 cfg.SOLVER.STEPS = []        # do not decay learning rate
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128   # faster, and good enough for this toy dataset (default: 512)
-cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (loop). (see https://detectron2.readthedocs.io/tutorials/datasets.html#update-the-config-for-new-datasets)
+cfg.MODEL.ROI_HEADS.NUM_CLASSES = 2  # only has one class (loop). (see https://detectron2.readthedocs.io/tutorials/datasets.html#update-the-config-for-new-datasets)
 cfg.INPUT.MASK_FORMAT = 'bitmask'
 
 # check command line flags for --eval-only
@@ -124,7 +120,8 @@ predictor = DefaultPredictor(cfg)
 
 from detectron2.utils.visualizer import ColorMode
 dataset_dicts = get_loop_dicts( dataset_name + "/test")
-for d in random.sample(dataset_dicts, 3):    
+idx = 0
+for d in dataset_dicts:    
     im = cv2.imread(d["file_name"])
     outputs = predictor(im)  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
     v = Visualizer(im[:, :, ::-1],
@@ -133,4 +130,5 @@ for d in random.sample(dataset_dicts, 3):
                    instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels. This option is only available for segmentation models
     )
     out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-    cv2.imwrite("loop_val_sample.png", out.get_image()[:,:,::-1])
+    cv2.imwrite("preds/%05d.png"%idx, out.get_image()[:,:,::-1])
+    idx += 1
