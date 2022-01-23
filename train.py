@@ -36,6 +36,8 @@ def get_loop_dicts(img_dir):
 
     # Create a dictionary for each image and its corresponding annots file
     for i, img_name in enumerate(img_list):
+        if i == 22:
+            continue
         record = {}
         objs = []
         
@@ -50,31 +52,34 @@ def get_loop_dicts(img_dir):
 
         # read annotation
         annots_path = os.path.join(img_dir, 'annots', img_name.replace(".png", ".xml"))
-        with open(annots_path, 'r') as f:
-            for line in f:
-                # split line by space
-                label, xmin, ymin, xmax, ymax = list(map(lambda x: int(x), line.split()))
+        try:
+            with open(annots_path, 'r') as f:
+                for line in f:
+                    # split line by space
+                    label, xmin, ymin, xmax, ymax = list(map(lambda x: int(x), line.split()))
 
-                # create a mask with 1s inside bounding box
-                mask = np.zeros((img_height, img_width), dtype=np.uint8)
-                mask[ymin:ymax, xmin:xmax] = 1
+                    # create a mask with 1s inside bounding box
+                    mask = np.zeros((img_height, img_width), dtype=np.uint8)
+                    mask[ymin:ymax, xmin:xmax] = 1
 
-                obj = {
-                    'bbox': [xmin, ymin, xmax, ymax],
-                    'bbox_mode': BoxMode.XYXY_ABS,
-                    'category_id': label,
-                    'segmentation': pycocotools.mask.encode(np.asarray(mask, order="F")),
-                }
-                objs.append(obj)
-            record['annotations'] = objs
+                    obj = {
+                        'bbox': [xmin, ymin, xmax, ymax],
+                        'bbox_mode': BoxMode.XYXY_ABS,
+                        'category_id': label,
+                        'segmentation': pycocotools.mask.encode(np.asarray(mask, order="F")),
+                    }
+                    objs.append(obj)
+                record['annotations'] = objs
+        except:
+            continue
         dataset_dicts.append(record)
 
     return dataset_dicts
 
-dataset_name = "datasets/loop_detectron"
+dataset_name = "datasets/detectron_simple"
 for d in ['train', 'test']:
     DatasetCatalog.register("loop_" + d, lambda d=d: get_loop_dicts( dataset_name  + "/" + d))
-    MetadataCatalog.get("loop_" + d).set(thing_classes=["non-trivial-knot", "trivial-knot"])
+    MetadataCatalog.get("loop_" + d).set(thing_classes=["knot"])
 
 loop_metadata = MetadataCatalog.get("loop_train")
 
@@ -97,11 +102,13 @@ cfg.DATALOADER.NUM_WORKERS = 2
 cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")  # Let training initialize from model zoo
 cfg.SOLVER.IMS_PER_BATCH = 2
 cfg.SOLVER.BASE_LR = 0.00025  # pick a good LR
-cfg.SOLVER.MAX_ITER = 1000    # 300 iterations seems good enough for this toy dataset; you will need to train longer for a practical dataset
+cfg.SOLVER.MAX_ITER = 20000    # 300 iterations seems good enough for this toy dataset; you will need to train longer for a practical dataset
 cfg.SOLVER.STEPS = []        # do not decay learning rate
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 128   # faster, and good enough for this toy dataset (default: 512)
-cfg.MODEL.ROI_HEADS.NUM_CLASSES = 2  # only has one class (loop). (see https://detectron2.readthedocs.io/tutorials/datasets.html#update-the-config-for-new-datasets)
+cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (loop). (see https://detectron2.readthedocs.io/tutorials/datasets.html#update-the-config-for-new-datasets)
 cfg.INPUT.MASK_FORMAT = 'bitmask'
+# cfg.MODEL.PIXEL_MEAN = [0.0] * 3
+# cfg.MODEL.PIXEL_STD = [255.0] * 3
 
 # check command line flags for --eval-only
 import argparse
@@ -132,3 +139,11 @@ for d in dataset_dicts:
     out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
     cv2.imwrite("preds/%05d.png"%idx, out.get_image()[:,:,::-1])
     idx += 1
+    # boxes = outputs["instances"].to("cpu")
+    # for box in boxes:
+    #     x0, y0, x1, y1 = box
+    #     dx = x1 - x0
+    #     dy = y1 - y0
+    #     crop = im[bounding[1]:bounding[1]+bounding[3], bounding[0]:bounding[0]+bounding[2],:]
+    #     cv2.imwrite("preds/%05d.png"%idx, crop) #may have to do [:, :, ::-1]
+    #     idx += 1
