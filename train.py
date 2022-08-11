@@ -22,6 +22,8 @@ from detectron2.data import MetadataCatalog, DatasetCatalog
 from detectron2.structures import BoxMode
 import pycocotools
 
+os.environ["CUDA_VISIBLE_DEVICES"]="4"
+
 def get_loop_dicts(img_dir):
     """
     Return a list of dictionaries that contain the information for each image
@@ -76,7 +78,7 @@ def get_loop_dicts(img_dir):
 
     return dataset_dicts
 
-dataset_name = "datasets/detectron_simple"
+dataset_name = "datasets/detectron_massive"
 for d in ['train', 'test']:
     DatasetCatalog.register("loop_" + d, lambda d=d: get_loop_dicts( dataset_name  + "/" + d))
     MetadataCatalog.get("loop_" + d).set(thing_classes=["knot"])
@@ -98,9 +100,9 @@ cfg = get_cfg()
 cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
 cfg.DATASETS.TRAIN = ("loop_train",)
 cfg.DATASETS.TEST = ()
-cfg.DATALOADER.NUM_WORKERS = 2
+cfg.DATALOADER.NUM_WORKERS = 1
 cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")  # Let training initialize from model zoo
-cfg.SOLVER.IMS_PER_BATCH = 2
+cfg.SOLVER.IMS_PER_BATCH = 16
 cfg.SOLVER.BASE_LR = 0.00025  # pick a good LR
 cfg.SOLVER.MAX_ITER = 20000    # 300 iterations seems good enough for this toy dataset; you will need to train longer for a practical dataset
 cfg.SOLVER.STEPS = []        # do not decay learning rate
